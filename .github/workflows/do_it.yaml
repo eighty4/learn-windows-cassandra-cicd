@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  do-it:
+    runs-on: windows-latest
+    steps:
+      - run: gh release download --repo microsoft/WSL --pattern "wsl.*.x64.msi" --clobber --output - > wsl.msi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: Start-Process msiexec.exe -Wait -ArgumentList "/i wsl.msi /quiet /qn /norestart"
+      - run: wsl --install -d Debian --no-launch
+      - run: wsl -d Debian bash -c "apt-get update && apt-get install -y wget"
+      - run: wsl -d Debian bash -c "apt-get update && apt-get install -y python3"
+      - run: wsl -d Debian bash -c "mkdir -p /etc/apt/keyrings"
+      - run: wsl -d Debian bash -c "wget -O /etc/apt/keyrings/adoptium.asc https://packages.adoptium.net/artifactory/api/gpg/key/public"
+      - run: wsl -d Debian bash -c 'echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb trixie main" | sudo tee /etc/apt/sources.list.d/adoptium.list'
+      - run: wsl -d Debian bash -c "apt-get update && apt-get install -y temurin-17-jdk"
+      - run: wsl -d Debian bash -c "wget -O /etc/apt/keyrings/apache-cassandra.asc https://downloads.apache.org/cassandra/KEYS"
+      - run: wsl -d Debian bash -c 'echo "deb [signed-by=/etc/apt/keyrings/apache-cassandra.asc] https://debian.cassandra.apache.org 50x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.list'
+      - run: wsl -d Debian bash -c "apt-get update && apt-get install -y cassandra"
+      - run: wsl -d Debian bash -c "/usr/sbin/cassandra -R"
+      - run: wsl -d Debian bash -c 'sleep 20; until cqlsh -e "DESCRIBE CLUSTER;"; do sleep 1; done'
+        timeout-minutes: 2
+
